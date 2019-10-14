@@ -1,0 +1,58 @@
+#!/bin/bash
+
+//1. Gather subdomain with Sublist3r
+//yahoo.com
+//2. Comile third-third domains
+//auto.yahoo.com
+//3. Gather all third-level domains with Sublist3r
+//4. Probe for alive hosts
+//5. Scan alive hosts with nmap
+//6. Run eyewitness on alive hosts
+
+
+if [ $# -gt 2 ]; then 
+    echo "Usage: ./script.sh <domain>"
+    echo "Example: ./script.sh yahoo.com"
+    exit 1
+fi
+
+if [ ! -d "thirdlevels" ]; then
+        mkdir thirdlevels
+fi
+
+if [ ! -d "scans" ]; then
+        mkdir scans
+fi
+
+if [ ! -d "eyewitness" ]; then
+        mkdir eyewitness
+fi
+
+pwd=$(pwd)
+
+echo "Gathering subdomains with Sublist3r..."
+Sublist3r -d $1 -o final.txt
+
+echo $1 >> final.txt
+
+echo "Compiling third-level domains..."
+cat domain-test.txt | grep -Po "(\w+\.\w+\.\w+)$" | sort -u >> third-level.txt
+
+echo "Gatheering full third-level domains with Sublist3r..."
+for domain in $(cat third-level.txt); do sublist3r -d $domain -o thirdlevels/$domain.txt; cat thirdlevels/$domain.txt | sort -u >> final.txt;done
+
+if [ $# -eq 2 ];
+then
+        echo "Probing for alive third-levels..."
+        cat final.txt | sort -u | grep -v $2 | httprobe -s -p https:443 | sed 's/hhtps\?:\/\///' | tr -d ":443 > probed.txt
+else
+        echo "Probing for alive third-levels..."
+        cat final.txt | sort -u | httprobe -s -p https:443 | sed 's/hhtps\?:\/\///' | tr -d ":443 > probed.txt
+fi
+
+echo "Scanning for open ports..."
+namp -iL probed.txt -T5 -oA scans/scanned.txt
+
+echo "Running Eyewitness..."
+eyewitness -f $pwd/probed.txt -d $1 --all-protocols
+mv /usr/share/eyewitness/$1 eyewitness/$1
